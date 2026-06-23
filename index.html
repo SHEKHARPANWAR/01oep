@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Team Expense & Task Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ SIDEBAR NAV -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="7" fill="#2D9CDB"/>
+        <path d="M7 14L11 18L21 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <span class="logo-name">TeamTrack</span>
+      <span class="logo-sub">Dashboard</span>
+    </div>
+    <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">✕</button>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a href="#overview" class="nav-item active" data-section="overview">
+      <span class="nav-icon">◈</span>
+      <span>Overview</span>
+    </a>
+    <a href="#tasks" class="nav-item" data-section="tasks">
+      <span class="nav-icon">☑</span>
+      <span>Tasks</span>
+    </a>
+    <a href="#expenses" class="nav-item" data-section="expenses">
+      <span class="nav-icon">◎</span>
+      <span>Expenses</span>
+    </a>
+    <a href="#analytics" class="nav-item" data-section="analytics">
+      <span class="nav-icon">▣</span>
+      <span>Analytics</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-status">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-label" id="statusLabel">Connecting…</span>
+    <span class="status-time" id="statusTime"></span>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════ OVERLAY -->
+<div class="overlay" id="overlay"></div>
+
+<!-- ═══════════════════════════════════════════════════════ MAIN WRAPPER -->
+<div class="main-wrapper">
+
+  <!-- ── TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" id="menuToggle" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="topbar-logo-mobile">
+        <span class="logo-name">TeamTrack</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="search-box">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="#7E8FA6" stroke-width="1.5"/><path d="M11 11L14 14" stroke="#7E8FA6" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <input type="text" id="globalSearch" placeholder="Search team, task, employee…" autocomplete="off" />
+        <button class="search-clear" id="searchClear" style="display:none">✕</button>
+      </div>
+      <button class="refresh-btn" id="refreshBtn" title="Refresh data">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 112.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2.5 2.5V5.5H5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="last-updated" id="lastUpdated">—</div>
+    </div>
+  </header>
+
+  <!-- ── MAIN CONTENT -->
+  <main class="content">
+
+    <!-- ════════════════════════ SECTION: OVERVIEW -->
+    <section id="overview" class="section active">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Overview</h1>
+          <p class="section-sub">Live data from your spreadsheet</p>
+        </div>
+        <div class="filter-row">
+          <select id="teamFilterOverview" class="filter-select">
+            <option value="">All Teams</option>
+          </select>
+          <select id="statusFilterOverview" class="filter-select">
+            <option value="">All Statuses</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="cards-grid" id="summaryCards">
+        <div class="card card-blue">
+          <div class="card-label">Total Budget</div>
+          <div class="card-value" id="totalBudget">—</div>
+          <div class="card-bar"><div class="card-bar-fill" id="budgetBar" style="width:100%"></div></div>
+          <div class="card-meta" id="budgetMeta"></div>
+        </div>
+        <div class="card card-red">
+          <div class="card-label">Total Expense</div>
+          <div class="card-value" id="totalExpense">—</div>
+          <div class="card-bar"><div class="card-bar-fill" id="expenseBar" style="width:0%"></div></div>
+          <div class="card-meta" id="expenseMeta"></div>
+        </div>
+        <div class="card card-green">
+          <div class="card-label">Remaining Budget</div>
+          <div class="card-value" id="totalRemaining">—</div>
+          <div class="card-bar"><div class="card-bar-fill" id="remainingBar" style="width:0%"></div></div>
+          <div class="card-meta" id="remainingMeta"></div>
+        </div>
+        <div class="card card-amber">
+          <div class="card-label">Active Tasks</div>
+          <div class="card-value" id="activeTasks">—</div>
+          <div class="card-bar"><div class="card-bar-fill" id="activeBar" style="width:0%"></div></div>
+          <div class="card-meta" id="activeTasksMeta"></div>
+        </div>
+        <div class="card card-purple">
+          <div class="card-label">Completed Tasks</div>
+          <div class="card-value" id="completedTasks">—</div>
+          <div class="card-bar"><div class="card-bar-fill" id="completedBar" style="width:0%"></div></div>
+          <div class="card-meta" id="completedMeta"></div>
+        </div>
+        <div class="card card-teal">
+          <div class="card-label">Teams</div>
+          <div class="card-value" id="totalTeams">—</div>
+          <div class="card-bar"><div class="card-bar-fill" style="width:100%"></div></div>
+          <div class="card-meta" id="teamsMeta"></div>
+        </div>
+      </div>
+
+      <!-- Team Summary Table -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Team Summary</h2>
+        </div>
+        <div class="table-wrap">
+          <table id="teamSummaryTable">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th class="sortable" data-col="budget">Budget <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-col="expense">Expense <span class="sort-icon">↕</span></th>
+                <th>Remaining</th>
+                <th>Usage</th>
+                <th>Tasks</th>
+                <th>Completed</th>
+              </tr>
+            </thead>
+            <tbody id="teamSummaryBody">
+              <tr><td colspan="7" class="loading-row"><div class="spinner"></div> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════ SECTION: TASKS -->
+    <section id="tasks" class="section">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">All Tasks</h1>
+          <p class="section-sub" id="taskCount">Loading…</p>
+        </div>
+        <div class="filter-row">
+          <select id="teamFilterTasks" class="filter-select">
+            <option value="">All Teams</option>
+          </select>
+          <select id="statusFilterTasks" class="filter-select">
+            <option value="">All Statuses</option>
+          </select>
+          <input type="date" id="dateFilterStart" class="filter-select" placeholder="From date" title="Start date" />
+          <input type="date" id="dateFilterEnd" class="filter-select" placeholder="To date" title="End date" />
+          <button class="btn-ghost" id="clearFilters">Clear</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="table-wrap">
+          <table id="tasksTable">
+            <thead>
+              <tr>
+                <th class="sortable" data-col="team">Team <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-col="task">Task <span class="sort-icon">↕</span></th>
+                <th>Assigned To</th>
+                <th class="sortable" data-col="budget">Budget <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-col="expense">Expense <span class="sort-icon">↕</span></th>
+                <th>Remaining</th>
+                <th>Status</th>
+                <th class="sortable" data-col="duedate">Due Date <span class="sort-icon">↕</span></th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="tasksBody">
+              <tr><td colspan="9" class="loading-row"><div class="spinner"></div> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer" id="tasksPagination"></div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════ SECTION: EXPENSES -->
+    <section id="expenses" class="section">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Expense Ledger</h1>
+          <p class="section-sub">All budget vs. expense records</p>
+        </div>
+        <div class="filter-row">
+          <select id="teamFilterExpenses" class="filter-select">
+            <option value="">All Teams</option>
+          </select>
+          <button class="btn-ghost" id="clearFiltersExp">Clear</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="table-wrap">
+          <table id="expensesTable">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Task</th>
+                <th>Assigned To</th>
+                <th class="sortable" data-col="budget">Budget <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-col="expense">Expense <span class="sort-icon">↕</span></th>
+                <th>Remaining</th>
+                <th>% Used</th>
+                <th>Status</th>
+                <th>Last Updated</th>
+              </tr>
+            </thead>
+            <tbody id="expensesBody">
+              <tr><td colspan="9" class="loading-row"><div class="spinner"></div> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer" id="expensesPagination"></div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════ SECTION: ANALYTICS -->
+    <section id="analytics" class="section">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Analytics</h1>
+          <p class="section-sub">Charts auto-update with your spreadsheet</p>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="panel chart-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Budget vs Expense by Team</h2>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="budgetExpenseChart"></canvas>
+          </div>
+        </div>
+        <div class="panel chart-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Task Status Distribution</h2>
+          </div>
+          <div class="chart-wrap chart-wrap-sm">
+            <canvas id="statusChart"></canvas>
+          </div>
+        </div>
+        <div class="panel chart-panel chart-wide">
+          <div class="panel-header">
+            <h2 class="panel-title">Monthly Expense Trend</h2>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </div>
+        <div class="panel chart-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Budget Utilization by Team</h2>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="utilizationChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── FOOTER -->
+  <footer class="footer">
+    <span>TeamTrack Dashboard — Live data from Google Sheets</span>
+    <span id="footerRefresh"></span>
+  </footer>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ SETUP MODAL -->
+<div class="modal-backdrop" id="setupModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙️ Connect Your Google Sheet</h2>
+      <p>One-time setup — no code changes needed after this.</p>
+    </div>
+    <div class="modal-body">
+      <ol class="setup-steps">
+        <li>
+          <strong>Open your Google Sheet</strong> in a browser.
+        </li>
+        <li>
+          <strong>File → Share → Publish to web</strong><br>
+          Set "Entire Document" + "Comma-separated values (.csv)" then click <em>Publish</em>.
+        </li>
+        <li>
+          <strong>Copy the published CSV URL</strong><br>
+          It looks like:<br>
+          <code>https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/pub?output=csv</code>
+        </li>
+        <li>
+          <strong>Paste it below and click Save.</strong>
+        </li>
+      </ol>
+      <div class="setup-input-group">
+        <label for="sheetUrl">Google Sheet CSV URL</label>
+        <input type="url" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…/pub?output=csv" />
+        <div class="setup-hint">💡 Make sure you published as CSV, not HTML.</div>
+      </div>
+
+      <div class="setup-divider">OR — Paste sample data to test the dashboard</div>
+      <textarea id="sampleData" class="sample-textarea" rows="6" placeholder='Team Name,Task Name,Budget,Expense,Remaining Budget,Task Status,Assigned To,Start Date,Due Date,Remarks,Last Updated
+Alpha,Website Redesign,50000,32000,18000,In Progress,Rahul Sharma,2024-01-01,2024-03-31,On track,2024-02-15
+Alpha,SEO Audit,15000,15000,0,Completed,Priya Mehta,2024-01-10,2024-02-10,Delivered,2024-02-10
+Beta,Mobile App,80000,45000,35000,In Progress,Vikram Nair,2024-01-15,2024-04-30,Delayed,2024-02-20'></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" id="saveSheetUrl">Connect & Load Data</button>
+      <button class="btn-ghost" id="loadSample">Load Sample Data</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ ERROR TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
